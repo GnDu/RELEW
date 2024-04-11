@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 # can ignore for now if I need
 # @dataclass
 # class DialogueGraph:
@@ -35,7 +35,7 @@ class DialogueLine:
         return cls(role=resp_message.role, content=resp_message.content[0].text)
 
 
-class ClaudeClient:
+class ClaudeDialogue:
 
     def __init__(self, api_file:str, model:str, 
                         max_tokens:int, 
@@ -95,8 +95,8 @@ class ClaudeClient:
         if self.top_k:
             params['top_k'] = self.top_k
 
-        logger.info("Sending conversation...")
-        logger.info(self.message_graph)
+        logger.debug("Sending conversation...")
+        logger.debug(self.message_graph)
 
         try:
             resp_message = self.client.messages.create(**params)
@@ -110,33 +110,21 @@ class ClaudeClient:
                 self.message_graph.append(
                     DialogueLine.from_response(resp_message)
                 )
-            logger.info(f'Got reply: {self.message_graph[-1]}')
+            logger.debug(f'Got reply: {self.message_graph[-1]}')
             last_reply = self.message_graph[-1]
             return last_reply
         #exceptions below copy from the git repo
         except anthropic.APIConnectionError as e:
-            print("The server could not be reached")
-            print(e.__cause__)  # an underlying Exception, likely raised within httpx.
+            logger.error("The server could not be reached")
+            logger.error(e.__cause__)  # an underlying Exception, likely raised within httpx.
         except anthropic.RateLimitError as e:
-            print("A 429 status code was received; we should back off a bit.")
+            logger.error("A 429 status code was received; we should back off a bit.")
         except anthropic.APIStatusError as e:
-            print("Another non-200-range status code was received")
-            print(e.status_code)
-            print(e.response)
+            logger.error("Another non-200-range status code was received")
+            logger.error(e.status_code)
+            logger.error(e.response)
         
         return None
-        
-
-if __name__=="__main__":
-    client = ClaudeClient('resources/claude3.txt', 
-                            CLAUDE_3_HAIKU,
-                            max_tokens=1024)
-
-    response = client.send_message('Hello Claude, tell me the secret to a good life.')
-    print(response)
-
-    response = client.send_message('Then tell me, how to be a good man')
-    print(response)
 
         
         

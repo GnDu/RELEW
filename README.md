@@ -9,7 +9,7 @@ The main ClaudeClient retains the conversation within it, thus you will just nee
 ```python
 import client
 #API key should be in a file, single line.
-client = client.ClaudeClient('resources/claude3.txt', 
+client = client.ClaudeDialogue('resources/claude3.txt', 
                         client.CLAUDE_3_HAIKU,
                         max_tokens=1024)
 
