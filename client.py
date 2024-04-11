@@ -1,10 +1,13 @@
 import anthropic
 import logging
+import dataclasses
+import sys
 from typing import List, Dict, Any
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
-
+logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+logger.setLevel(logging.INFO)
 # can ignore for now if I need
 # @dataclass
 # class DialogueGraph:
@@ -15,6 +18,22 @@ logger = logging.getLogger(__name__)
 CLAUDE_3_OPUS = 'claude-3-opus-20240229'
 CLAUDE_3_SONNET = 'claude-3-sonnet-20240229'
 CLAUDE_3_HAIKU = 'claude-3-haiku-20240307'
+
+@dataclass
+class DialogueLine:
+    role:str
+    content:str
+
+    def as_dict(self):
+        return dataclasses.asdict(self)
+
+    def __str__(self):
+        return f"<<{self.role}>>:\n{self.content}"
+
+    @classmethod
+    def from_response(cls, resp_message):
+        return cls(role=resp_message.role, content=resp_message.content[0].text)
+
 
 class ClaudeClient:
 
@@ -50,14 +69,13 @@ class ClaudeClient:
         if role not in ['user', 'assistant']:
             raise AssertionError(f'Role is either user or assistant but not {role}')
 
-        self.message_graph.append({
-            'role': role,
-            'content': message
-        })
+        input_message = DialogueLine(role=role, content=message)
+
+        self.message_graph.append(input_message)
 
         params = {
             "max_tokens": self.max_tokens,
-            "messages": self.message_graph,
+            "messages": [msg.as_dict() for msg in self.message_graph],
             "model":self.model
         }
 
@@ -78,16 +96,47 @@ class ClaudeClient:
             params['top_k'] = self.top_k
 
         logger.info("Sending conversation...")
-        message = self.client.messages.create(**params)
+        logger.info(self.message_graph)
+
+        try:
+            resp_message = self.client.messages.create(**params)
+
+            #for the case where input role is assistant, 
+            #we will append to original message
+            if role=='assistant' and role==resp_message.role:
+                self.message_graph[-1].content+=resp_message.content[0].text
+            else:
+                assert(len(resp_message.content)==1)
+                self.message_graph.append(
+                    DialogueLine.from_response(resp_message)
+                )
+            logger.info(f'Got reply: {self.message_graph[-1]}')
+            last_reply = self.message_graph[-1]
+            return last_reply
+        #exceptions below copy from the git repo
+        except anthropic.APIConnectionError as e:
+            print("The server could not be reached")
+            print(e.__cause__)  # an underlying Exception, likely raised within httpx.
+        except anthropic.RateLimitError as e:
+            print("A 429 status code was received; we should back off a bit.")
+        except anthropic.APIStatusError as e:
+            print("Another non-200-range status code was received")
+            print(e.status_code)
+            print(e.response)
         
-        print(type(message), message)
+        return None
+        
 
 if __name__=="__main__":
     client = ClaudeClient('resources/claude3.txt', 
                             CLAUDE_3_HAIKU,
                             max_tokens=1024)
 
-    client.send_message('Hello Claude, tell me the secret to a good life.')
+    response = client.send_message('Hello Claude, tell me the secret to a good life.')
+    print(response)
+
+    response = client.send_message('Then tell me, how to be a good man')
+    print(response)
 
         
         
