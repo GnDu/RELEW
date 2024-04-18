@@ -1,4 +1,4 @@
-from client import ClaudeClient, CLAUDE_3_OPUS
+from recew.client import ClaudeClient, CLAUDE_3_OPUS
 
 if __name__=="__main__":
     with open('resources/system_prompt') as f:
