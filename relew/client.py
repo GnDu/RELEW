@@ -3,8 +3,9 @@ import requests
 import logging
 import dataclasses
 import sys
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Set,Tuple
 from dataclasses import dataclass
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
@@ -21,6 +22,22 @@ CLAUDE_3_SONNET = 'claude-3-sonnet-20240229'
 CLAUDE_3_HAIKU = 'claude-3-haiku-20240307'
 
 @dataclass
+class OllamaChatConfiguration(BaseModel):
+    mirostat: int = 0, 
+    mirostat_eta: float = 0.1, 
+    mirostat_tau: float = 5.0,
+    num_ctx: int = 2048, 
+    repeat_last_n: int = 64, 
+    repeat_penalty: float = 1.1,
+    temperature: float = 0.8, 
+    seed: int = 0, 
+    stop: str = None, 
+    tfs_z: float = 1.0,
+    num_predict: int = 128, 
+    top_k: int = 40, 
+    top_p: float = 0.9
+
+@dataclass
 class DialogueLine:
     role:str
     content:str
@@ -35,26 +52,23 @@ class DialogueLine:
     def from_response(cls, resp_message):
         return cls(role=resp_message.role, content=resp_message.content[0].text)
 
-class OllamaDialogue:
+class Dialogue(BaseModel):
+    message_graph:List[DialogueLine]=Field(default_factory=list)
 
-    def __init__(self, ollama_url:str, 
-                    modelfile:str,
-                    mirostat: int = 0, 
-                    mirostat_eta: float = 0.1, 
-                    mirostat_tau: float = 5.0,
-                  num_ctx: int = 2048, 
-                  repeat_last_n: int = 64, 
-                  repeat_penalty: float = 1.1,
-                  temperature: float = 0.8, 
-                  seed: int = 0, 
-                  stop: str = None, 
-                  tfs_z: float = 1.0,
-                  num_predict: int = 128, 
-                  top_k: int = 40, 
-                  top_p: float = 0.9):
+    def add_dialogue(self, message, role:str='user'):
+        if role not in ['user', 'assistant']:
+            raise AssertionError(f'Role is either user or assistant but not {role}')
+        input_message = DialogueLine(role=role, content=message)
+        self.message_graph.append(input_message)
+
+class OllamaDialogue(Dialogue):
+
+    ollama_url:str
+    modelfile:str
+        
+    def send_message(self, message, role:str='user')->str:
         pass
-        
-        
+
 
 class ClaudeDialogue:
 
@@ -85,7 +99,7 @@ class ClaudeDialogue:
         self.stop_sequences = stop_sequences
         self.top_k = top_k
 
-    def send_message(self, message, role:str='user'):
+    def send_message(self, message, role:str='user')->str:
         
         if role not in ['user', 'assistant']:
             raise AssertionError(f'Role is either user or assistant but not {role}')
