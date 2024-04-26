@@ -1,4 +1,4 @@
-from recew import 
+from recew import ClaudeDialogue, CLAUDE_3_HAIKU
 
 if __name__=="__main__":
     client = ClaudeDialogue('resources/claude3.txt', 
