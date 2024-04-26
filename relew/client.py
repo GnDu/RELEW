@@ -52,6 +52,7 @@ class OllamaDialogue:
                   num_predict: int = 128, 
                   top_k: int = 40, 
                   top_p: float = 0.9):
+        pass
         
         
 
