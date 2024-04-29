@@ -1,10 +1,10 @@
-# RECEW
+# RELEW
 
 RELEW is a **RE**dundant **L**LM cli**E**nt **W**rapper. It is meant for personal use to interface with multiple different LLMs.
 
 Current LLM interfaced:
 
-- Claude 3 using  anthropic client sdk
+- Claude 3 using anthropic client sdk
 - ollama
 
 This repo is ran on python 3.12 but any python version is fine as long as you hit the minimum requirement.
