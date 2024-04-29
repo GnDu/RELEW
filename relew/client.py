@@ -21,7 +21,6 @@ CLAUDE_3_OPUS = 'claude-3-opus-20240229'
 CLAUDE_3_SONNET = 'claude-3-sonnet-20240229'
 CLAUDE_3_HAIKU = 'claude-3-haiku-20240307'
 
-@dataclass
 class OllamaChatConfiguration(BaseModel):
     mirostat: int = 0, 
     mirostat_eta: float = 0.1, 
@@ -37,8 +36,41 @@ class OllamaChatConfiguration(BaseModel):
     top_k: int = 40, 
     top_p: float = 0.9
 
-@dataclass
-class DialogueLine:
+class ClaudeChatConfiguration(BaseModel):
+    max_tokens:int 
+    temperature:float=0.2
+    stop_sequences:str="",
+    top_p:float=None,
+    top_k:int=None
+
+    def model_post_init(self, __context: Any) -> None:
+        #we override temperature if top_p is defined
+        if self.top_p is not None and self.temperature is not None:
+            print("Can't define top_p and temperature at the same time, top_p will override temperature")
+
+        if self.top_p is None and self.temperature is None:
+            raise AssertionError("Must specify either temperature or top_p.")
+    
+    def get_params(self):
+        params = {
+            "max_tokens": self.max_tokens,
+        }
+        if self.top_p is not None:
+            params['top_p'] = self.top_p
+        elif self.temperature is not None:
+            params['temperature'] = self.temperature
+        else:
+            raise AssertionError("Must specify either temperature or top_p.")
+        
+        if self.stop_sequences:
+            params['stop_sequences'] = self.stop_sequences
+
+        if self.top_k:
+            params['top_k'] = self.top_k
+
+        
+
+class DialogueLine(BaseModel):
     role:str
     content:str
 
@@ -52,82 +84,43 @@ class DialogueLine:
     def from_response(cls, resp_message):
         return cls(role=resp_message.role, content=resp_message.content[0].text)
 
-class Dialogue(BaseModel):
+class DialogueSession(BaseModel):
     message_graph:List[DialogueLine]=Field(default_factory=list)
 
-    def add_dialogue(self, message, role:str='user'):
+    def add_dialogue(self, message:str, role:str='user'):
         if role not in ['user', 'assistant']:
             raise AssertionError(f'Role is either user or assistant but not {role}')
         input_message = DialogueLine(role=role, content=message)
         self.message_graph.append(input_message)
 
-class OllamaDialogue(Dialogue):
+class OllamaDialogue(DialogueSession):
 
     ollama_url:str
     modelfile:str
         
-    def send_message(self, message, role:str='user')->str:
+    def send_message(self, config:OllamaChatConfiguration, message:str, role:str='user')->str:
         pass
 
 
-class ClaudeDialogue:
+class ClaudeDialogue(DialogueSession):
 
-    def __init__(self, api_file:str, model:str, 
-                        max_tokens:int, 
-                        temperature:float=0.2, 
-                        system_prompt:str="",
-                        stop_sequences:str="",
-                        top_p:float=None,
-                        top_k:int=None):
-        with open(api_file) as f:
-            api_key = f.read().strip()
-        self.client = anthropic.Anthropic(api_key=api_key)
+    model:str
+    api_key:str
+    system_prompt:str=""
 
-        #needed
-        self.model = model
-        self.max_tokens = max_tokens
-        self.message_graph = []
+    def model_post_init(self, __context: Any) -> None:
+        self.client = anthropic.Anthropic(api_key=self.api_key)
+
+    def send_message(self, config:ClaudeChatConfiguration, message:str, role:str='user')->str:
         
-        #we override temperature if top_p is defined
-        if top_p is not None and temperature is not None:
-            print("Can't define top_p and temperature at the same time, top_p will override temperature")
-        self.top_p = top_p
-        self.temperature = temperature
-
-        #optional params
-        self.system_prompt = system_prompt
-        self.stop_sequences = stop_sequences
-        self.top_k = top_k
-
-    def send_message(self, message, role:str='user')->str:
-        
-        if role not in ['user', 'assistant']:
-            raise AssertionError(f'Role is either user or assistant but not {role}')
-
-        input_message = DialogueLine(role=role, content=message)
-        self.message_graph.append(input_message)
-
-        params = {
-            "max_tokens": self.max_tokens,
-            "messages": [msg.as_dict() for msg in self.message_graph],
-            "model":self.model
-        }
-
-        if self.top_p is not None:
-            params['top_p'] = self.top_p
-        elif self.temperature is not None:
-            params['temperature'] = self.temperature
-        else:
-            raise AssertionError("Must specify either temperature or top_p.")
+        self.add_dialogue(message, role)
+        params = config.get_params()
 
         if self.system_prompt:
             params['system'] = self.system_prompt
 
-        if self.stop_sequences:
-            params['stop_sequences'] = self.system_prompt
-
-        if self.top_k:
-            params['top_k'] = self.top_k
+        params["messages"] = [msg.as_dict() for msg in self.message_graph]
+        params["model"] = self.model
 
         logger.debug("Sending conversation...")
         logger.debug(self.message_graph)
