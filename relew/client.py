@@ -23,19 +23,19 @@ CLAUDE_3_HAIKU = 'claude-3-haiku-20240307'
 
 @dataclass
 class OllamaChatConfiguration(BaseModel):
-    mirostat: int = 0, 
-    mirostat_eta: float = 0.1, 
-    mirostat_tau: float = 5.0,
-    num_ctx: int = 2048, 
-    repeat_last_n: int = 64, 
-    repeat_penalty: float = 1.1,
-    temperature: float = 0.8, 
-    seed: int = 0, 
+    mirostat: int = None, 
+    mirostat_eta: float = None, 
+    mirostat_tau: float = None,
+    num_ctx: int = None, 
+    repeat_last_n: int = None, 
+    repeat_penalty: float = None,
+    temperature: float = None, 
+    seed: int = None, 
     stop: str = None, 
-    tfs_z: float = 1.0,
-    num_predict: int = 128, 
-    top_k: int = 40, 
-    top_p: float = 0.9
+    tfs_z: float = None,
+    num_predict: int = None, 
+    top_k: int = None, 
+    top_p: float = None
 
 @dataclass
 class DialogueLine:
@@ -65,9 +65,49 @@ class OllamaDialogue(Dialogue):
 
     ollama_url:str
     modelfile:str
+    
+    def model_post_init(self, __context: Any) -> None:
+        if ollama_url.endswith('/'):
+            self.ollama_url = self.ollama_url[:-1]
         
-    def send_message(self, message, role:str='user')->str:
-        pass
+        #get params from model file
+        model_file_api_call = f"{self.ollama_url}/api/show"
+        r = requests.post(model_file_api_call,
+                      json={
+                          'name': self.modelfile
+                      })
+
+        r.raise_for_status()
+        json_file = r.json()
+        raw_parameters = json_file['parameters'].split('\n')
+        self.params:dict = {}
+        for raw_params in raw_parameters:
+            tokens = raw_params.strip().split(2)
+            key = tokens[0]
+            values = tokens[1]
+            self.params[key] = values
+            logger.debug(f"{key}: {values}")
+
+    def send_message(self, config:OllamaChatConfiguration, message:str, role:str='user')->str:
+        
+        generate_api_call = f"{self.ollama_url}/api/chat"
+
+        #to override any model parameters
+        options = config.dict(exclude_defaults=True)
+        self.add_dialogue(message, role)
+
+        payload = {"model": self.modelfile, 
+                    "messages": [msg.as_dict for msg in self.message_graph], 
+                    "stream": False}
+        if options:
+            payload['options'] = options
+
+        r = requests.post(generate_api_call, json=payload)
+        r.raise_for_status()
+
+        response = r.json()
+        message = response['message']
+        logger.debug(message)
 
 
 class ClaudeDialogue:
