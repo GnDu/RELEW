@@ -5,10 +5,11 @@ import dataclasses
 import sys
 from typing import List, Dict, Any, Set,Tuple
 from dataclasses import dataclass
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
+from anthropic import Anthropic
 
 logger = logging.getLogger(__name__)
-logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+logger.addHandler(logging.StreamHandler(sys.stdout))
 logger.setLevel(logging.DEBUG)
 # can ignore for now if I need
 # @dataclass
@@ -22,25 +23,25 @@ CLAUDE_3_SONNET = 'claude-3-sonnet-20240229'
 CLAUDE_3_HAIKU = 'claude-3-haiku-20240307'
 
 class OllamaChatConfiguration(BaseModel):
-    mirostat: int = None, 
-    mirostat_eta: float = None, 
-    mirostat_tau: float = None,
-    num_ctx: int = None, 
-    repeat_last_n: int = None, 
-    repeat_penalty: float = None,
-    temperature: float = None, 
-    seed: int = None, 
-    stop: str = None, 
-    tfs_z: float = None,
-    num_predict: int = None, 
-    top_k: int = None, 
+    mirostat: int = None
+    mirostat_eta: float = None
+    mirostat_tau: float = None
+    num_ctx: int = None
+    repeat_last_n: int = None
+    repeat_penalty: float = None
+    temperature: float = None
+    seed: int = None
+    stop: str = None
+    tfs_z: float = None
+    num_predict: int = None
+    top_k: int = None
     top_p: float = None
 
 class ClaudeChatConfiguration(BaseModel):
     max_tokens:int 
     temperature:float=0.2
-    stop_sequences:str="",
-    top_p:float=None,
+    stop_sequences:str=None
+    top_p:float=None
     top_k:int=None
 
     def model_post_init(self, __context: Any) -> None:
@@ -68,20 +69,15 @@ class ClaudeChatConfiguration(BaseModel):
         if self.top_k:
             params['top_k'] = self.top_k
 
+        return params
+
 
 class DialogueLine(BaseModel):
     role:str
     content:str
 
-    def as_dict(self):
-        return dataclasses.asdict(self)
-
     def __str__(self):
         return f"<<{self.role}>>:\n{self.content}"
-
-    @classmethod
-    def from_response(cls, resp_message):
-        return cls(role=resp_message.role, content=resp_message.content[0].text)
 
 class DialogueSession(BaseModel):
     message_graph:List[DialogueLine]=Field(default_factory=list)
@@ -128,7 +124,7 @@ class OllamaDialogue(DialogueSession):
         self.add_dialogue(message, role)
 
         payload = {"model": self.modelfile, 
-                    "messages": [msg.as_dict for msg in self.message_graph], 
+                    "messages": [msg.model_dump() for msg in self.message_graph], 
                     "stream": False}
         if options:
             payload['options'] = options
@@ -142,13 +138,17 @@ class OllamaDialogue(DialogueSession):
 
 
 class ClaudeDialogue(DialogueSession):
-
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     model:str
     api_key:str
     system_prompt:str=""
+    client:Anthropic=None
 
     def model_post_init(self, __context: Any) -> None:
-        self.client = anthropic.Anthropic(api_key=self.api_key)
+        self.client = Anthropic(api_key=self.api_key)
+
+    def convert_resp_to_dialogue_line(self, resp_message):
+        return DialogueLine(role=resp_message.role, content=resp_message.content[0].text)
 
     def send_message(self, config:ClaudeChatConfiguration, message:str, role:str='user')->str:
         
@@ -158,11 +158,12 @@ class ClaudeDialogue(DialogueSession):
         if self.system_prompt:
             params['system'] = self.system_prompt
 
-        params["messages"] = [msg.as_dict() for msg in self.message_graph]
+        params["messages"] = [msg.model_dump() for msg in self.message_graph]
         params["model"] = self.model
 
         logger.debug("Sending conversation...")
         logger.debug(self.message_graph)
+        logger.debug(params)
 
         try:
             resp_message = self.client.messages.create(**params)
@@ -174,7 +175,7 @@ class ClaudeDialogue(DialogueSession):
             else:
                 assert(len(resp_message.content)==1)
                 self.message_graph.append(
-                    DialogueLine.from_response(resp_message)
+                    self.convert_resp_to_dialogue_line(resp_message)
                 )
             logger.debug(f'Got reply: {self.message_graph[-1]}')
             last_reply = self.message_graph[-1]

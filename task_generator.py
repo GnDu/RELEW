@@ -1,13 +1,13 @@
-from recew.client import ClaudeClient, CLAUDE_3_OPUS
+from src.client import ClaudeDialogue, CLAUDE_3_OPUS
 
 if __name__=="__main__":
     with open('resources/system_prompt') as f:
         system_prompt = f.read()
 
-    client = ClaudeClient('resources/claude3.txt', 
-                            CLAUDE_3_OPUS,
-                            max_tokens=4096,
-                            system_prompt=system_prompt)
+    with open("resources/api_key", 'r') as f:
+        api_key = f.read()
+
+    client = ClaudeDialogue(model=CLAUDE_3_OPUS, api_key=api_key, system_prompt=system_prompt)
 
     with open('graph.py') as f:
         tool_str = f.read()

@@ -1,3 +1,13 @@
+[project]
+name = "RELEW"
+version = "0.0.1"
+authors = [
+  { name="Gndu", email="ud.connexus@gmail.com" },
+]
+description = "RELEW is a REdundant LLM cliEnt Wrapper. It is meant for personal use to interface with multiple different LLMs."
+readme = "README.md"
+requires-python = ">=3.12"
+
 [build-system]
 requires = ["setuptools>=68.2", "anthropic>=0.25.1"]
 build-backend = "setuptools.build_meta"
