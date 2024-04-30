@@ -92,6 +92,7 @@ class OllamaDialogue(DialogueSession):
 
     ollama_url:str
     modelfile:str
+    params:dict = Field(default_factory=dict)
     
     def model_post_init(self, __context: Any) -> None:
         if self.ollama_url.endswith('/'):
@@ -107,12 +108,15 @@ class OllamaDialogue(DialogueSession):
         r.raise_for_status()
         json_file = r.json()
         raw_parameters = json_file['parameters'].split('\n')
-        self.params:dict = {}
         for raw_params in raw_parameters:
-            tokens = raw_params.strip().split(2)
+            tokens = raw_params.strip().split(' ', 2)
             key = tokens[0]
             values = tokens[1]
-            self.params[key] = values
+            if key in self.params:
+                self.params[key] = [self.params[key]]
+                self.params[key].append(values)
+            else:
+                self.params[key] = values
             logger.debug(f"{key}: {values}")
 
     def send_message(self, config:OllamaChatConfiguration, message:str, role:str='user')->str:
@@ -136,6 +140,11 @@ class OllamaDialogue(DialogueSession):
         message = response['message']
         logger.debug(message)
 
+        self.message_graph.append(self.convert_resp_to_dialogue_line(message))
+        return self.message_graph[-1]
+
+    def convert_resp_to_dialogue_line(self, resp_message:Dict[str, str]):
+        return DialogueLine(role=resp_message["role"], content=resp_message["content"])
 
 class ClaudeDialogue(DialogueSession):
     model_config = ConfigDict(arbitrary_types_allowed=True)
