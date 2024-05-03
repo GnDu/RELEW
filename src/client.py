@@ -117,7 +117,7 @@ class OllamaDialogue(DialogueSession):
                 self.params[key].append(values)
             else:
                 self.params[key] = values
-            logger.debug(f"{key}: {values}")
+            # logger.debug(f"{key}: {values}")
 
     def send_message(self, config:OllamaChatConfiguration, message:str, role:str='user')->str:
         
@@ -139,7 +139,7 @@ class OllamaDialogue(DialogueSession):
         response = r.json()
         message = response['message']
         dialogue_line = self.convert_resp_to_dialogue_line(message)
-        logger.debug(message)
+        # logger.debug(message)
         self.message_graph.append(dialogue_line)
 
         return self.message_graph[-1]
