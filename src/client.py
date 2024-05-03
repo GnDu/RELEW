@@ -134,7 +134,15 @@ class OllamaDialogue(DialogueSession):
 
         response = r.json()
         message = response['message']
+        dialogue_line = self.convert_resp_to_dialogue_line(message)
         logger.debug(message)
+        self.message_graph.append(dialogue_line)
+
+        return self.message_graph[-1]
+
+    def convert_resp_to_dialogue_line(self, resp_message:Dict[str, str]):
+
+        return DialogueLine(role=resp_message["role"], content=resp_message["content"])
 
 
 class ClaudeDialogue(DialogueSession):
