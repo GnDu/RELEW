@@ -14,7 +14,7 @@ class TripleGraph(BaseModel):
     add_vertex, remove_vertex, add_edge, remove_edge.
 
     """
-    vertices:List[str]
+    vertices:Set[str]
     edges:List[Tuple[str,str, str]]
 
     def add_vertex(self, vertex_id:str):
@@ -28,7 +28,7 @@ class TripleGraph(BaseModel):
         vertex_id:str
             the id, $v$ that uniquely identify the vertex
         """
-        self.vertices.append(vertex_id)
+        self.vertices.add(vertex_id)
     
     def remove_vertex(self, vertex_id:str):
         """Remove a vertex, $v$ from the graph $G$.
@@ -51,46 +51,54 @@ class TripleGraph(BaseModel):
 
         self.vertices.remove(vertex_id)
 
-    def add_edge(self, from_id:str, to_id:str, relation_label:str):
+    def add_edge(self, head:str, relation_label:str, tail:str):
         """
-        Add edge, $(v_i, v_j, r)$ to the graph, $G$. 
-
-        Note, this function does not check for duplicates.
+        Add edge, $(v_i, r, v_j)$ to the graph, $G$. 
 
         Parameters
         ----------
-        from_id:str
+        head:str
             the vertex id that serves as the source, $v_i$
-
-        to_id:str
-            the vertex id that serves as the sink, $v_j$
 
         relation_label:str
             the relation label, $r$ for the edge 
-        """
-        self.edges.append((from_id, to_id, relation_label))
 
-    def remove_edge(self, from_id:str, to_id:str, relation_label:str):
+        tail:str
+            the vertex id that serves as the sink, $v_j$
+
         """
-        Remove the edge, $(v_i, v_j, r)$ from the graph, $G$. 
+        if head not in self.vertices:
+            raise ValueError(f"{head} not added. Use add_vertex to add vertex first")
         
-        Note, this function does not check whether $(v_i, v_j, r)$ exists. It will
+        if tail not in self.vertices:
+            raise ValueError(f"{tail} not added. Use add_vertex to add vertex first")
+        
+        self.edges.append((head, relation_label, tail))
+
+    def remove_edge(self, head:str, relation_label:str, tail:str):
+        """
+        Remove the edge, $(v_i, r, v_j)$ from the graph, $G$. 
+        
+        Note, this function does not check whether $(v_i, r, v_j)$ exists. It will
         raise an exception if it does not.
 
         Parameters
         ----------
-        from_id:str
+        head:str
             the vertex id that serves as the source, $v_i$
-
-        to_id:str
-            the vertex id that serves as the sink, $v_j$
 
         relation_label:str
             the relation label, $r$ for the edge 
 
+        tail:str
+            the vertex id that serves as the sink, $v_j$
+
         Raises
         ------
         ValueError
-            if (from_id, to_id, relation_label) / $(v_i, v_j, r)$ does not exist
+            if (head, relation_label, tail) / $(v_i, r, v_j)$ does not exist
         """
-        self.edges.remove((from_id, to_id, relation_label))
+        self.edges.remove((head, relation_label, tail))
+
+    def format_edges(self):
+        return "[\n" + "\n".join([f"({e[0]}, {e[1]}, {e[2]})" for e in self.edges]) + "\n]"
